@@ -1,0 +1,6 @@
+{
+  "subgraph": "ClientRegistry",
+  "http": {
+    "baseAddress": "http://ca-clientregistry/graphql"
+  }
+}

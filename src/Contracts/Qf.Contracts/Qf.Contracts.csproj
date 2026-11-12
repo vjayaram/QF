@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Published language between bounded contexts (DDD context map). Versioned integration
+    events only; no domain types. Breaking changes ship as a new V(n+1) record side by side.
+  -->
+</Project>

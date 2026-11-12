@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shared DDD kernel. No package references: the domain must stay framework-free. -->
+  <PropertyGroup>
+    <RootNamespace>Qf.BuildingBlocks</RootNamespace>
+  </PropertyGroup>
+</Project>

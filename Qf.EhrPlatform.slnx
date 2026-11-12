@@ -1,0 +1,39 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/Qf.BuildingBlocks.Hosting/Qf.BuildingBlocks.Hosting.csproj" />
+    <Project Path="src/BuildingBlocks/Qf.BuildingBlocks.Infrastructure/Qf.BuildingBlocks.Infrastructure.csproj" />
+    <Project Path="src/BuildingBlocks/Qf.BuildingBlocks/Qf.BuildingBlocks.csproj" />
+  </Folder>
+  <Folder Name="/src/Contracts/">
+    <Project Path="src/Contracts/Qf.Contracts/Qf.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/src/Gateway/">
+    <Project Path="src/Gateway/Qf.Gateway/Qf.Gateway.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/" />
+  <Folder Name="/src/Services/ClientRegistry/">
+    <Project Path="src/Services/ClientRegistry/Qf.ClientRegistry.AntiCorruption/Qf.ClientRegistry.AntiCorruption.csproj" />
+    <Project Path="src/Services/ClientRegistry/Qf.ClientRegistry.Api/Qf.ClientRegistry.Api.csproj" />
+    <Project Path="src/Services/ClientRegistry/Qf.ClientRegistry.Application/Qf.ClientRegistry.Application.csproj" />
+    <Project Path="src/Services/ClientRegistry/Qf.ClientRegistry.Domain/Qf.ClientRegistry.Domain.csproj" />
+    <Project Path="src/Services/ClientRegistry/Qf.ClientRegistry.Infrastructure/Qf.ClientRegistry.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Scheduling/">
+    <Project Path="src/Services/Scheduling/Qf.Scheduling.Api/Qf.Scheduling.Api.csproj" />
+    <Project Path="src/Services/Scheduling/Qf.Scheduling.Application/Qf.Scheduling.Application.csproj" />
+    <Project Path="src/Services/Scheduling/Qf.Scheduling.Domain/Qf.Scheduling.Domain.csproj" />
+    <Project Path="src/Services/Scheduling/Qf.Scheduling.Infrastructure/Qf.Scheduling.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Qf.ArchitectureTests/Qf.ArchitectureTests.csproj" />
+    <Project Path="tests/Qf.ClientRegistry.Api.IntegrationTests/Qf.ClientRegistry.Api.IntegrationTests.csproj" />
+    <Project Path="tests/Qf.ClientRegistry.Tests/Qf.ClientRegistry.Tests.csproj" />
+    <Project Path="tests/Qf.ModelGen.Tests/Qf.ModelGen.Tests.csproj" />
+    <Project Path="tests/Qf.Scheduling.Tests/Qf.Scheduling.Tests.csproj" />
+    <Project Path="tests/Qf.TestKit/Qf.TestKit.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Qf.ModelGen/Qf.ModelGen.csproj" />
+  </Folder>
+</Solution>

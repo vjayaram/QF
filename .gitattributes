@@ -1,0 +1,4 @@
+# Shell scripts and contract snapshots run and diff on Linux agents; keep LF even when edited on Windows.
+*.sh                              text eol=lf
+contracts/graphql/*.graphql       text eol=lf
+contracts/asyncapi/*.yaml         text eol=lf

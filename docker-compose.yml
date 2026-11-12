@@ -1,0 +1,33 @@
+# Local development: SQL Server + Service Bus emulator. Apps run from the IDE (dotnet run) against these.
+#   docker compose up -d
+#   pwsh ./scripts/local-db.ps1        # publish both DACPACs to the local SQL Server
+#   dotnet user-jwts create --project src/Services/ClientRegistry/Qf.ClientRegistry.Api \
+#       --role Clients.Read --role Clients.Write --role Phi.Read --claim qf_tenant_id=a1a1a1a1-0000-4000-8000-000000000001
+services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Your_strong_password1"   # local only; Azure uses Entra-only auth
+    ports: ["1433:1433"]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      retries: 10
+
+  servicebus-sql:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Your_strong_password1"
+
+  servicebus:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    depends_on: [servicebus-sql]
+    environment:
+      SQL_SERVER: servicebus-sql
+      MSSQL_SA_PASSWORD: "Your_strong_password1"
+      ACCEPT_EULA: "Y"
+    volumes:
+      - ./infra/local/servicebus-config.json:/ServiceBus_Emulator/ConfigFiles/Config.json
+    ports: ["5672:5672"]

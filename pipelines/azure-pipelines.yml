@@ -1,0 +1,225 @@
+# EHR platform CI/CD (Azure DevOps). One pipeline, promoted artefacts:
+#   Build -> Package -> Dev (plan, apply, DB, apps) -> Prod (approval, plan, apply, DB, canary)
+# Identity: Azure Resource Manager service connections use workload identity federation (OIDC),
+# so there are no client secrets in Azure DevOps. Agents: a Managed DevOps Pool inside the platform
+# VNet, because SQL, Service Bus, ACR and Key Vault are reachable only through private endpoints.
+
+trigger:
+  branches:
+    include: [main]
+  paths:
+    exclude: ['docs/*', '*.md']
+
+pr:
+  branches:
+    include: [main]
+
+variables:
+  - group: qf-ehr-platform                 # non-secret ids: service connection names, ACR names
+  - name: buildConfiguration
+    value: Release
+  - name: agentPool
+    value: mdp-qf-ehr
+  - name: imageTag
+    value: $(Build.SourceVersion)
+  # Set to true at queue time only after GraphQL consumers have agreed to a breaking schema change.
+  - name: allowBreakingGraphQLChanges
+    value: false
+
+stages:
+  # ------------------------------------------------------------------ BUILD
+  - stage: Build
+    displayName: Build, test, scan
+    jobs:
+      - job: Build
+        displayName: Build and test
+        pool:
+          name: $(agentPool)
+        steps:
+          - template: templates/dotnet-setup.yml
+
+          - script: dotnet run --project tools/Qf.ModelGen -c $(buildConfiguration) -- --all --check
+            displayName: 'MDD gate: generated code and SQL match models/'
+
+          - script: dotnet build Qf.EhrPlatform.slnx -c $(buildConfiguration) --no-restore
+            displayName: Build (warnings are errors)
+
+          # Whitespace and .editorconfig code style. Generated files (**/Generated/*.g.cs) are skipped:
+          # ModelGen owns them and the MDD gate above already checks them.
+          - script: dotnet format Qf.EhrPlatform.slnx --verify-no-changes --no-restore --severity warn
+            displayName: 'Code style: dotnet format --verify-no-changes'
+
+          - bash: |
+              set -o pipefail
+              dotnet list Qf.EhrPlatform.slnx package --vulnerable --include-transitive 2>&1 | tee vulnerable.txt
+              if grep -qE '\b(High|Critical)\b' vulnerable.txt; then echo "##vso[task.logissue type=error]Vulnerable packages"; exit 1; fi
+            displayName: Fail on High/Critical vulnerable packages
+
+          - script: >
+              dotnet test Qf.EhrPlatform.slnx -c $(buildConfiguration) --no-build
+              --settings coverage.runsettings
+              --collect "XPlat Code Coverage"
+              --logger trx
+              --results-directory $(Agent.TempDirectory)/TestResults
+            displayName: Unit, architecture, generator and integration tests (Testcontainers)
+
+          - script: >
+              dotnet reportgenerator
+              -reports:$(Agent.TempDirectory)/TestResults/**/coverage.cobertura.xml
+              -targetdir:$(Build.ArtifactStagingDirectory)/coverage
+              -reporttypes:"Cobertura;HtmlInline_AzurePipelines;JsonSummary"
+            displayName: Merge coverage
+            condition: succeededOrFailed()
+
+          - bash: |
+              line=$(jq '.summary.linecoverage' "$(Build.ArtifactStagingDirectory)/coverage/Summary.json")
+              branch=$(jq '.summary.branchcoverage' "$(Build.ArtifactStagingDirectory)/coverage/Summary.json")
+              echo "Line coverage: $line%  Branch coverage: $branch%"
+              awk -v l="$line" -v b="$branch" 'BEGIN { exit !(l >= 80 && b >= 70) }' \
+                || { echo "##vso[task.logissue type=error]Coverage below gate (line 80%, branch 70%)"; exit 1; }
+            displayName: 'Coverage gate: line >= 80%, branch >= 70%'
+
+          - task: PublishTestResults@2
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: VSTest
+              testResultsFiles: '$(Agent.TempDirectory)/TestResults/**/*.trx'
+              failTaskOnFailedTests: true
+
+          - task: PublishCodeCoverageResults@2
+            condition: succeededOrFailed()
+            inputs:
+              summaryFileLocation: $(Build.ArtifactStagingDirectory)/coverage/Cobertura.xml
+
+          - pwsh: ./scripts/compose-gateway.ps1
+            displayName: 'GraphQL: compose Fusion gateway (fails on schema conflicts)'
+
+          - template: templates/contracts-setup.yml
+
+          - bash: bash contracts/scripts/check-graphql-breaking.sh
+            displayName: 'GraphQL contract: snapshot committed, no breaking changes vs main'
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+              ALLOW_BREAKING_GRAPHQL_CHANGES: $(allowBreakingGraphQLChanges)
+
+          - script: |
+              dotnet build database/ClientRegistry/ClientRegistry.sqlproj -c $(buildConfiguration)
+              dotnet build database/Scheduling/Scheduling.sqlproj -c $(buildConfiguration)
+            displayName: Build DACPACs (schema validated by the SQL compiler)
+
+          - bash: |
+              set -e
+              out=$(Build.ArtifactStagingDirectory)
+              mkdir -p "$out/db" "$out/graphql"
+              cp database/*/bin/$(buildConfiguration)/*.dacpac "$out/db/"
+              cp src/Gateway/Qf.Gateway/gateway.fgp src/Gateway/Qf.Gateway/composed-schema.graphql "$out/graphql/"
+            displayName: Stage artefacts
+
+          - publish: $(Build.ArtifactStagingDirectory)/db
+            artifact: dacpac
+          - publish: $(Build.ArtifactStagingDirectory)/graphql
+            artifact: graphql
+          - publish: infra/terraform
+            artifact: terraform
+          - publish: scripts
+            artifact: scripts
+
+      - job: Contracts
+        displayName: Event contracts (AsyncAPI)
+        pool:
+          name: $(agentPool)
+        steps:
+          - checkout: self
+            fetchDepth: 1
+          - template: templates/contracts-setup.yml
+          - script: npm run lint:events --prefix contracts
+            displayName: 'AsyncAPI: Spectral lint (house rules, fails on warnings)'
+          - script: npm run check:events --prefix contracts
+            displayName: 'AsyncAPI: matches Qf.Contracts records, Subjects, Topics and Terraform subscriptions'
+
+      - job: Security
+        displayName: SAST, secrets, IaC and dependency scanning
+        pool:
+          name: $(agentPool)
+        steps:
+          - template: templates/dotnet-setup.yml
+          # GitHub Advanced Security for Azure DevOps: CodeQL SAST + dependency scanning.
+          - task: AdvancedSecurity-Codeql-Init@1
+            inputs:
+              languages: csharp
+              querysuite: security-extended
+          - script: dotnet build Qf.EhrPlatform.slnx -c $(buildConfiguration) --no-restore
+            displayName: Build for CodeQL
+          - task: AdvancedSecurity-Dependency-Scanning@1
+          - task: AdvancedSecurity-Codeql-Analyze@1
+          # Microsoft Security DevOps: Terraform misconfiguration (Checkov, Terrascan) and secret scanning.
+          - task: MicrosoftSecurityDevOps@1
+            inputs:
+              categories: 'IaC,secrets'
+              break: true
+
+  # ------------------------------------------------------------------ PACKAGE
+  - stage: Package
+    displayName: Container images
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: Images
+        pool:
+          name: $(agentPool)
+        strategy:
+          matrix:
+            clientregistry:
+              app: clientregistry
+              dockerfile: src/Services/ClientRegistry/Qf.ClientRegistry.Api/Dockerfile
+            scheduling:
+              app: scheduling
+              dockerfile: src/Services/Scheduling/Qf.Scheduling.Api/Dockerfile
+            gateway:
+              app: gateway
+              dockerfile: src/Gateway/Qf.Gateway/Dockerfile
+        steps:
+          - download: current
+            artifact: graphql
+          - bash: cp $(Pipeline.Workspace)/graphql/gateway.fgp src/Gateway/Qf.Gateway/gateway.fgp
+            displayName: Use composed gateway config
+          - task: AzureCLI@2
+            displayName: Build, scan, SBOM, push to dev registry
+            inputs:
+              azureSubscription: $(serviceConnectionDev)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                image="$(acrNameDev).azurecr.io/$(app):$(imageTag)"
+                az acr login --name "$(acrNameDev)"
+                docker build -f "$(dockerfile)" -t "$image" --label "org.opencontainers.image.revision=$(Build.SourceVersion)" .
+                # Block on fixable High/Critical OS or library CVEs.
+                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.58.1 \
+                  image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL "$image"
+                docker push "$image"
+                dotnet tool restore
+                mkdir -p "$(Build.ArtifactStagingDirectory)/sbom-$(app)"
+                dotnet sbom-tool generate -b "$(Build.ArtifactStagingDirectory)/sbom-$(app)" -bc . \
+                  -pn "qf-ehr-$(app)" -pv "$(Build.BuildNumber)" -ps Qualifacts -nsb https://qualifacts.example/sbom -di "$image"
+          - publish: $(Build.ArtifactStagingDirectory)/sbom-$(app)
+            artifact: sbom-$(app)
+
+  # ------------------------------------------------------------------ DEV
+  - template: templates/deploy-environment.yml
+    parameters:
+      environment: dev
+      dependsOn: Package
+      serviceConnection: $(serviceConnectionDev)
+      acrName: $(acrNameDev)
+      canaryPercent: 100
+
+  # ------------------------------------------------------------------ PROD
+  - template: templates/deploy-environment.yml
+    parameters:
+      environment: prod
+      dependsOn: Deploy_dev
+      serviceConnection: $(serviceConnectionProd)
+      acrName: $(acrNameProd)
+      sourceAcrName: $(acrNameDev)      # promote the exact tested image (same digest), never rebuild
+      canaryPercent: 10

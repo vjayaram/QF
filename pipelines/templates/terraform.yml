@@ -1,0 +1,51 @@
+# Terraform with workload identity federation. `plan` publishes a binary plan; `apply` applies exactly
+# that plan (what was reviewed is what ships), then exports outputs for later steps.
+parameters:
+  - name: environment
+    type: string
+  - name: serviceConnection
+    type: string
+  - name: command
+    type: string
+    values: [plan, apply]
+
+steps:
+  - task: TerraformInstaller@1
+    inputs:
+      terraformVersion: 1.10.5
+
+  - ${{ if eq(parameters.command, 'apply') }}:
+    - download: current
+      artifact: tfplan-${{ parameters.environment }}
+
+  - task: AzureCLI@2
+    displayName: terraform ${{ parameters.command }} (${{ parameters.environment }})
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      addSpnToEnvironment: true
+      workingDirectory: $(Pipeline.Workspace)/terraform
+      inlineScript: |
+        set -euo pipefail
+        export ARM_USE_OIDC=true
+        export ARM_OIDC_TOKEN="$idToken"
+        export ARM_CLIENT_ID="$servicePrincipalId"
+        export ARM_TENANT_ID="$tenantId"
+        terraform init -input=false -backend-config=environments/${{ parameters.environment }}.backend.hcl
+        if [[ "${{ parameters.command }}" == "plan" ]]; then
+          terraform fmt -check -recursive
+          terraform validate
+          terraform plan -input=false -lock-timeout=5m \
+            -var-file=environments/${{ parameters.environment }}.tfvars \
+            -var="graphql_schema_path=$(Pipeline.Workspace)/graphql/composed-schema.graphql" \
+            -out=$(Build.ArtifactStagingDirectory)/tfplan
+          terraform show -no-color $(Build.ArtifactStagingDirectory)/tfplan > $(Build.ArtifactStagingDirectory)/tfplan.txt
+        else
+          terraform apply -input=false -lock-timeout=5m $(Pipeline.Workspace)/tfplan-${{ parameters.environment }}/tfplan
+          terraform output -json > $(Pipeline.Workspace)/tf-outputs.json
+        fi
+
+  - ${{ if eq(parameters.command, 'plan') }}:
+    - publish: $(Build.ArtifactStagingDirectory)
+      artifact: tfplan-${{ parameters.environment }}

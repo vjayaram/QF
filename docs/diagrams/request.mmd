@@ -1,0 +1,20 @@
+%%{init: {'theme':'neutral'}}%%
+sequenceDiagram
+  autonumber
+  participant UI as EHR web app
+  participant APIM as API Management
+  participant GW as Fusion gateway
+  participant SCH as Scheduling subgraph
+  participant CRG as Client Registry subgraph
+  participant SQL as Azure SQL (RLS)
+  UI->>APIM: query { appointmentById { slot client { name mrn } } } + Bearer token
+  APIM->>APIM: validate-jwt, rate-limit by qf_tenant_id, depth <= 8
+  APIM->>GW: forward
+  GW->>SCH: appointmentById (token propagated)
+  SCH->>SQL: SESSION_CONTEXT(TenantId) + EF tenant filter
+  SQL-->>SCH: appointment row (tenant-scoped)
+  SCH-->>GW: { slot, client { id } }
+  GW->>CRG: clientById(id) { name mrn }
+  CRG->>CRG: phi.read policy + PHI access audit
+  CRG-->>GW: { name, mrn }
+  GW-->>UI: merged result

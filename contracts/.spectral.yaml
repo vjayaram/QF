@@ -1,0 +1,81 @@
+# House rules for Qualifacts integration-event contracts (AsyncAPI).
+# Run: npm run lint:events   (CI fails on any warning or error)
+extends: ["spectral:asyncapi"]
+
+rules:
+  qf-message-name-versioned:
+    description: Message names are the Service Bus Subject and must end in a contract version, e.g. ClientMerged.v1.
+    severity: error
+    given: "$.components.messages[*]"
+    then:
+      field: name
+      function: pattern
+      functionOptions:
+        match: "^[A-Z][A-Za-z]+\\.v[0-9]+$"
+
+  qf-message-declares-no-phi:
+    description: Integration events carry identifiers only. Every message must declare x-phi false.
+    severity: error
+    given: "$.components.messages[*]"
+    then:
+      field: x-phi
+      function: enumeration
+      functionOptions:
+        values: [false]
+
+  qf-message-has-envelope:
+    description: Every message applies the serviceBusEnvelope trait (tenantId header, MessageId = eventId).
+    severity: error
+    resolved: false
+    given: "$.components.messages[*]"
+    then:
+      field: "traits[0].$ref"
+      function: pattern
+      functionOptions:
+        match: "#/components/messageTraits/serviceBusEnvelope$"
+
+  qf-payload-extends-integration-event:
+    description: Event payload schemas compose IntegrationEvent first (eventId, occurredAt, tenantId).
+    severity: error
+    resolved: false
+    given: "$.components.schemas[?(@['x-csharp-type'])]"
+    then:
+      field: "allOf[0].$ref"
+      function: pattern
+      functionOptions:
+        match: "#/components/schemas/IntegrationEvent$"
+
+  qf-payload-maps-to-csharp:
+    description: Event payload schemas name their Qf.Contracts record in x-csharp-type, so CI can check the two match.
+    severity: error
+    resolved: false
+    given: "$.components.messages[*].payload"
+    then:
+      field: "$ref"
+      function: truthy
+
+  qf-no-phi-property-names:
+    description: Property names that suggest PHI are not allowed in events; publish an id and let consumers query with authorization.
+    severity: error
+    given: "$..properties"
+    then:
+      field: "@key"
+      function: pattern
+      functionOptions:
+        notMatch: "/(name|birth|dob|mrn|ssn|address|phone|email|diagnos|note|insurance|member)/i"
+
+  qf-properties-described:
+    description: Every payload property has a description; it is the consumer's documentation.
+    severity: warn
+    given: "$.components.schemas..properties[*]"
+    then:
+      field: description
+      function: truthy
+
+  qf-operation-described:
+    description: Every operation says which service sends or receives it and how.
+    severity: warn
+    given: "$.operations[*]"
+    then:
+      field: description
+      function: truthy

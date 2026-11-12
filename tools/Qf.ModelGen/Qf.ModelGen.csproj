@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Model-driven development (MDD) generator. Reads models/*.model.json and emits the
+    structural code for each bounded context: value objects, enums + state machines,
+    aggregate state, domain events, EF Core mappings and Hot Chocolate GraphQL types.
+    Behaviour (invariants, use cases) stays hand-written in partial classes (DDD).
+    Zero package dependencies so it runs anywhere the .NET SDK runs.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Qf.ModelGen</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Qf.ModelGen.Tests" />
+  </ItemGroup>
+</Project>

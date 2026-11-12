@@ -1,0 +1,29 @@
+%%{init: {'theme':'neutral', 'flowchart': {'nodeSpacing': 40, 'rankSpacing': 60}}}%%
+flowchart TB
+  ENTRA[["Microsoft Entra ID<br/>app roles · qf_tenant_id claim"]]
+  U["EHR web app<br/>(clinician, front desk)"]
+  ENTRA -. token .-> U
+  U -->|HTTPS + Bearer token| APIM
+  subgraph VNET["Platform VNet: only APIM is internet-facing"]
+    APIM["API Management<br/>validate-jwt<br/>rate limit per agency<br/>GraphQL depth/size limits"]
+    subgraph CAE["Container Apps environment (internal, mTLS)"]
+      GW["ca-gateway<br/>Hot Chocolate Fusion"]
+      S1["ca-clientregistry<br/>subgraph · outbox relay"]
+      S2["ca-scheduling<br/>subgraph · outbox relay · consumer"]
+      GW --> S1
+      GW --> S2
+    end
+    subgraph PE["PaaS via private endpoints, managed identity only"]
+      SQL[("Azure SQL<br/>DB per context<br/>RLS · TDE · Entra-only")]
+      SB[["Service Bus Premium<br/>topics · dedupe · DLQ"]]
+      KV[(Key Vault)]
+      ACR[(Container Registry)]
+    end
+    APIM --> GW
+    S1 --> SQL
+    S2 --> SQL
+    S1 -->|ClientMerged.v1| SB
+    SB --> S2
+  end
+  CAE -->|OpenTelemetry| MON[("App Insights + Log Analytics<br/>PHI access audit · alerts")]
+  ADO["Azure DevOps (workload identity federation)<br/>agents in VNet deploy: Terraform · DACPAC · revisions"] -.-> VNET

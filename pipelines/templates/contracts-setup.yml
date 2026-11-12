@@ -1,0 +1,15 @@
+# Node.js and the pinned contract tooling (Spectral, GraphQL Inspector) from contracts/package-lock.json.
+steps:
+  - task: UseNode@1
+    displayName: Node.js 22
+    inputs:
+      version: 22.x
+  - task: Cache@2
+    displayName: Cache npm packages
+    inputs:
+      key: 'npm | "$(Agent.OS)" | contracts/package-lock.json'
+      restoreKeys: |
+        npm | "$(Agent.OS)"
+      path: $(Pipeline.Workspace)/.npm
+  - script: npm ci --prefix contracts --no-audit --no-fund --cache $(Pipeline.Workspace)/.npm
+    displayName: Install contract tooling (locked)

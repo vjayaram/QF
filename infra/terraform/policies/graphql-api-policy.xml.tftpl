@@ -1,0 +1,48 @@
+<policies>
+  <inbound>
+    <base />
+%{ if length(allowed_origins) > 0 ~}
+    <cors allow-credentials="true">
+      <allowed-origins>
+%{ for origin in allowed_origins ~}
+        <origin>${origin}</origin>
+%{ endfor ~}
+      </allowed-origins>
+      <allowed-methods><method>POST</method><method>GET</method></allowed-methods>
+      <allowed-headers><header>Authorization</header><header>Content-Type</header></allowed-headers>
+    </cors>
+%{ endif ~}
+    <!-- 1. Authenticate: Entra ID access token for the platform API, with an agency (tenant) claim. -->
+    <validate-jwt header-name="Authorization" failed-validation-httpcode="401" require-scheme="Bearer">
+      <openid-config url="https://login.microsoftonline.com/${tenant_id}/v2.0/.well-known/openid-configuration" />
+      <audiences>
+        <audience>${audience}</audience>
+      </audiences>
+      <required-claims>
+        <claim name="qf_tenant_id" match="any" />
+      </required-claims>
+    </validate-jwt>
+    <!-- 2. Protect shared capacity: per-agency rate limit (noisy-neighbour control). -->
+    <rate-limit-by-key calls="600" renewal-period="60"
+      counter-key="@(context.Request.Headers.GetValueOrDefault(&quot;Authorization&quot;,&quot;&quot;).AsJwt()?.Claims.GetValueOrDefault(&quot;qf_tenant_id&quot;, &quot;anonymous&quot;))" />
+    <!-- 3. Reject abusive GraphQL before it reaches the gateway. -->
+    <validate-graphql-request error-variable-name="gqlErrors" max-size="102400" max-depth="8" />
+    <set-header name="X-Correlation-Id" exists-action="skip">
+      <value>@(context.RequestId.ToString())</value>
+    </set-header>
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+    <set-header name="X-Powered-By" exists-action="delete" />
+    <set-header name="Server" exists-action="delete" />
+    <set-header name="Strict-Transport-Security" exists-action="override">
+      <value>max-age=31536000; includeSubDomains</value>
+    </set-header>
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>

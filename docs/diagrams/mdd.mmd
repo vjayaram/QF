@@ -1,0 +1,10 @@
+%%{init: {'theme':'neutral'}}%%
+flowchart LR
+  M["models/*.model.json<br/>aggregates · value objects<br/>enums + state machines<br/>events · PHI flags · constraints"] --> V{"Qf.ModelGen<br/>validate"}
+  V -->|"rule broken (PHI in event,<br/>unbounded string, bad transition)"| X[Build fails]
+  V --> D["Domain *.g.cs<br/>value objects · validation · PHI redaction<br/>enums + transition tables<br/>aggregate state · domain events"]
+  V --> E["Infrastructure *.g.cs<br/>EF Core mappings"]
+  V --> G["Api *.g.cs<br/>GraphQL types; PHI fields get<br/>phi.read policy + access audit"]
+  V --> S["database *.g.sql<br/>DDL + CHECK constraints"]
+  H["Hand-written partial classes<br/>Client.cs · Appointment.cs<br/>invariants and behaviour"] --> D
+  CI["CI runs ModelGen --check:<br/>any drift fails the build"] -.-> V

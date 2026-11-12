@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Qf.Scheduling.Application\Qf.Scheduling.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Qf.BuildingBlocks.Infrastructure\Qf.BuildingBlocks.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

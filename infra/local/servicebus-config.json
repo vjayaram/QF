@@ -1,0 +1,28 @@
+{
+  "UserConfig": {
+    "Namespaces": [
+      {
+        "Name": "sbemulatorns",
+        "Topics": [
+          {
+            "Name": "client-registry-events",
+            "Properties": { "RequiresDuplicateDetection": true, "DuplicateDetectionHistoryTimeWindow": "PT1H" },
+            "Subscriptions": [
+              {
+                "Name": "scheduling",
+                "Properties": { "MaxDeliveryCount": 10, "DeadLetteringOnMessageExpiration": true },
+                "Rules": [ { "Name": "subjects", "Properties": { "FilterType": "Sql", "SqlFilter": { "SqlExpression": "sys.Label = 'ClientMerged.v1'" } } } ]
+              }
+            ]
+          },
+          {
+            "Name": "scheduling-events",
+            "Properties": { "RequiresDuplicateDetection": true, "DuplicateDetectionHistoryTimeWindow": "PT1H" },
+            "Subscriptions": [ { "Name": "billing", "Properties": { "MaxDeliveryCount": 10 } } ]
+          }
+        ]
+      }
+    ],
+    "Logging": { "Type": "File" }
+  }
+}

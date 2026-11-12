@@ -1,0 +1,28 @@
+%%{init: {'theme':'neutral'}}%%
+flowchart LR
+  subgraph Legacy["Acquired EHRs (monoliths, strangled over time)"]
+    CL[(CareLogic)]
+    CR[(Credible)]
+    IS[(InSync)]
+  end
+  subgraph ACL["Anti-corruption layer"]
+    T1[CareLogic translator<br/>CDC rows]
+    T2[Credible translator<br/>REST DTOs]
+    T3[InSync translator<br/>HL7 v2 PID]
+  end
+  CL --> T1
+  CR --> T2
+  IS --> T3
+  T1 & T2 & T3 -->|LegacyClientSnapshot| CRG
+  subgraph New["New platform (bounded contexts)"]
+    CRG["Client Registry<br/>(enterprise MPI)<br/><i>upstream / supplier</i>"]
+    SCH["Scheduling<br/><i>conformist</i>"]
+    BIL["Billing &amp; Claims<br/><i>next</i>"]
+    DOC["Clinical Documentation<br/><i>next</i>"]
+  end
+  CRG -- "ClientMerged.v1<br/>(published language)" --> SCH
+  CRG -- "ClientRegistered.v1" --> BIL
+  SCH -- "AppointmentCompleted.v1" --> BIL
+  GW{{"Fusion GraphQL gateway<br/>one graph for all UIs"}}
+  GW --- CRG
+  GW --- SCH

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.Build.Sql/1.0.0">
+  <!--
+    Declarative schema for the ClientRegistry database (Azure SQL). Tables/*.g.sql are generated from
+    models/; everything else is hand-written. CI builds a DACPAC; CD deploys it with sqlpackage,
+    blocking on data loss.
+  -->
+  <PropertyGroup>
+    <Name>ClientRegistry</Name>
+    <DSP>Microsoft.Data.Tools.Schema.Sql.SqlAzureV12DatabaseSchemaProvider</DSP>
+    <ModelCollation>1033, CI</ModelCollation>
+    <TreatTSqlWarningsAsErrors>true</TreatTSqlWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <PostDeploy Include="Scripts\PostDeployment.sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <SqlCmdVariable Include="AppIdentityName">
+      <DefaultValue>id-qf-ehr-dev-clientregistry</DefaultValue>
+      <Value>$(SqlCmdVar__1)</Value>
+    </SqlCmdVariable>
+  </ItemGroup>
+</Project>

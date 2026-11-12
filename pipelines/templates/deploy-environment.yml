@@ -1,0 +1,118 @@
+# Plan -> (approval) -> apply -> database -> applications, for one environment.
+parameters:
+  - name: environment
+    type: string
+  - name: dependsOn
+    type: string
+  - name: serviceConnection
+    type: string
+  - name: acrName
+    type: string
+  - name: sourceAcrName
+    type: string
+    default: ''
+  - name: canaryPercent
+    type: number
+    default: 100
+
+stages:
+  - stage: Plan_${{ parameters.environment }}
+    displayName: Terraform plan (${{ parameters.environment }})
+    dependsOn: ${{ parameters.dependsOn }}
+    jobs:
+      - job: Plan
+        pool:
+          name: $(agentPool)
+        steps:
+          - checkout: none
+          - download: current
+            artifact: terraform
+          - download: current
+            artifact: graphql
+          - template: terraform.yml
+            parameters:
+              environment: ${{ parameters.environment }}
+              serviceConnection: ${{ parameters.serviceConnection }}
+              command: plan
+
+  - stage: Deploy_${{ parameters.environment }}
+    displayName: Deploy (${{ parameters.environment }})
+    dependsOn: Plan_${{ parameters.environment }}
+    jobs:
+      # Approvals and business-hours checks are configured on the Azure DevOps environment.
+      - deployment: Release
+        environment: qf-ehr-${{ parameters.environment }}
+        pool:
+          name: $(agentPool)
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: terraform
+                - download: current
+                  artifact: graphql
+                - download: current
+                  artifact: dacpac
+                - download: current
+                  artifact: scripts
+
+                - template: terraform.yml
+                  parameters:
+                    environment: ${{ parameters.environment }}
+                    serviceConnection: ${{ parameters.serviceConnection }}
+                    command: apply
+
+                - task: AzureCLI@2
+                  displayName: Deploy database schemas (DACPAC, blocks on data loss)
+                  inputs:
+                    azureSubscription: ${{ parameters.serviceConnection }}
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      dotnet tool install --global microsoft.sqlpackage >/dev/null 2>&1 || true
+                      export PATH="$PATH:$HOME/.dotnet/tools"
+                      server=$(jq -r '.sql_server_fqdn.value' "$(Pipeline.Workspace)/tf-outputs.json")
+                      token=$(az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv)
+                      for app in $(jq -r '.databases.value | keys[]' "$(Pipeline.Workspace)/tf-outputs.json"); do
+                        db=$(jq -r ".databases.value.$app" "$(Pipeline.Workspace)/tf-outputs.json")
+                        identity=$(jq -r ".app_identity_names.value.$app" "$(Pipeline.Workspace)/tf-outputs.json")
+                        sqlpackage /Action:Publish \
+                          /SourceFile:"$(Pipeline.Workspace)/dacpac/$db.dacpac" \
+                          /TargetServerName:"$server" /TargetDatabaseName:"$db" /AccessToken:"$token" \
+                          /p:BlockOnPossibleDataLoss=true /p:DropObjectsNotInSource=false \
+                          /v:AppIdentityName="$identity"
+                      done
+
+                - ${{ if ne(parameters.sourceAcrName, '') }}:
+                  - task: AzureCLI@2
+                    displayName: Promote images (same digest) from ${{ parameters.sourceAcrName }}
+                    inputs:
+                      azureSubscription: ${{ parameters.serviceConnection }}
+                      scriptType: bash
+                      scriptLocation: inlineScript
+                      inlineScript: |
+                        set -euo pipefail
+                        for app in clientregistry scheduling gateway; do
+                          az acr import --name "${{ parameters.acrName }}" \
+                            --source "${{ parameters.sourceAcrName }}.azurecr.io/$app:$(imageTag)" \
+                            --image "$app:$(imageTag)" --force
+                        done
+
+                - task: AzureCLI@2
+                  displayName: Roll out apps (subgraphs first, gateway last; canary ${{ parameters.canaryPercent }}%)
+                  inputs:
+                    azureSubscription: ${{ parameters.serviceConnection }}
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      chmod +x $(Pipeline.Workspace)/scripts/*.sh
+                      rg=$(jq -r '.resource_group_name.value' "$(Pipeline.Workspace)/tf-outputs.json")
+                      registry="${{ parameters.acrName }}.azurecr.io"
+                      suffix="b$(Build.BuildId)"
+                      # Subgraph changes must be backward compatible (expand/contract), so they ship first.
+                      for app in clientregistry scheduling gateway; do
+                        $(Pipeline.Workspace)/scripts/deploy-containerapp.sh "$rg" "ca-$app" "$registry/$app:$(imageTag)" "$suffix" ${{ parameters.canaryPercent }}
+                      done

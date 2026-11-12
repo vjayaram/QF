@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    Hot Chocolate Fusion gateway: one GraphQL endpoint composed from every bounded-context subgraph.
+    gateway.fgp is produced in CI by `dotnet fusion compose` from the subgraphs' exported schemas.
+  -->
+  <ItemGroup>
+    <PackageReference Include="HotChocolate.Fusion" />
+    <PackageReference Include="Microsoft.AspNetCore.HeaderPropagation" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\Qf.BuildingBlocks.Hosting\Qf.BuildingBlocks.Hosting.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="gateway.fgp" CopyToPublishDirectory="PreserveNewest" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Anti-corruption layer: translates each acquired EHR's model into Client Registry language.
+    Legacy concepts (status codes, date formats, HL7 segments) stop here and never reach the domain.
+    The record layouts below are illustrative stand-ins for the real legacy schemas.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Qf.ClientRegistry.Application\Qf.ClientRegistry.Application.csproj" />
+  </ItemGroup>
+</Project>

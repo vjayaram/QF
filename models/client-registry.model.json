@@ -1,0 +1,81 @@
+{
+  "$comment": "Source of truth for the Client Registry bounded context (the enterprise MPI across acquired EHRs). Edit this file, then run: dotnet run --project tools/Qf.ModelGen -- --all",
+  "boundedContext": "ClientRegistry",
+  "namespace": "Qf.ClientRegistry.Domain",
+  "outputs": {
+    "domain": "src/Services/ClientRegistry/Qf.ClientRegistry.Domain/Generated",
+    "infrastructure": "src/Services/ClientRegistry/Qf.ClientRegistry.Infrastructure/Generated",
+    "infrastructureNamespace": "Qf.ClientRegistry.Infrastructure.Persistence",
+    "api": "src/Services/ClientRegistry/Qf.ClientRegistry.Api/Generated",
+    "apiNamespace": "Qf.ClientRegistry.Api.GraphQL",
+    "database": "database/ClientRegistry/Tables"
+  },
+  "enums": [
+    {
+      "name": "LegacySystem",
+      "description": "Acquired EHR platform a client record originated from.",
+      "values": [ "CareLogic", "Credible", "InSync" ]
+    },
+    {
+      "name": "ClientStatus",
+      "description": "Lifecycle of a client record in the registry.",
+      "values": [ "Active", "Inactive", "Merged" ],
+      "transitions": [
+        { "from": "Active", "to": "Inactive" },
+        { "from": "Inactive", "to": "Active" },
+        { "from": "Active", "to": "Merged" },
+        { "from": "Inactive", "to": "Merged" }
+      ]
+    }
+  ],
+  "valueObjects": [
+    {
+      "name": "MedicalRecordNumber",
+      "description": "Agency-assigned MRN, unique within a tenant.",
+      "fields": [
+        { "name": "Value", "type": "string", "maxLength": 32, "minLength": 4, "pattern": "^[A-Z0-9-]+$", "phi": true }
+      ]
+    },
+    {
+      "name": "PersonName",
+      "fields": [
+        { "name": "Given", "type": "string", "maxLength": 100, "phi": true },
+        { "name": "Family", "type": "string", "maxLength": 100, "phi": true },
+        { "name": "Middle", "type": "string", "maxLength": 100, "required": false, "phi": true }
+      ]
+    },
+    {
+      "name": "LegacyIdentity",
+      "description": "Pointer back to the record in an acquired EHR (strangler-fig traceability).",
+      "fields": [
+        { "name": "SourceSystem", "type": "LegacySystem" },
+        { "name": "ExternalId", "type": "string", "maxLength": 64, "phi": true }
+      ]
+    }
+  ],
+  "aggregates": [
+    {
+      "name": "Client",
+      "description": "A person receiving behavioral health services from a tenant agency.",
+      "table": "Clients",
+      "fields": [
+        { "name": "Mrn", "type": "MedicalRecordNumber", "unique": true },
+        { "name": "Name", "type": "PersonName" },
+        { "name": "DateOfBirth", "type": "DateOnly", "phi": true },
+        { "name": "Status", "type": "ClientStatus" },
+        { "name": "MergedIntoClientId", "type": "Guid", "required": false }
+      ],
+      "collections": [
+        { "name": "LegacyIdentities", "type": "LegacyIdentity", "table": "ClientLegacyIdentities", "uniqueAcross": [ "SourceSystem", "ExternalId" ] }
+      ],
+      "graphql": { "expose": true }
+    }
+  ],
+  "events": [
+    { "name": "ClientRegistered", "fields": [ { "name": "ClientId", "type": "Guid" }, { "name": "TenantId", "type": "Guid" } ] },
+    { "name": "LegacyIdentityLinked", "fields": [ { "name": "ClientId", "type": "Guid" }, { "name": "TenantId", "type": "Guid" }, { "name": "SourceSystem", "type": "LegacySystem" } ] },
+    { "name": "ClientDeactivated", "fields": [ { "name": "ClientId", "type": "Guid" }, { "name": "TenantId", "type": "Guid" } ] },
+    { "name": "ClientReactivated", "fields": [ { "name": "ClientId", "type": "Guid" }, { "name": "TenantId", "type": "Guid" } ] },
+    { "name": "ClientMerged", "fields": [ { "name": "SourceClientId", "type": "Guid" }, { "name": "SurvivorClientId", "type": "Guid" }, { "name": "TenantId", "type": "Guid" } ] }
+  ]
+}

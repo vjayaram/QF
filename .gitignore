@@ -1,0 +1,16 @@
+bin/
+obj/
+TestResults/
+coverage/
+*.user
+.vs/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+.env
+appsettings.*.local.json
+
+# Contract tooling (npm ci --prefix contracts)
+contracts/node_modules/
+Claude outputs/

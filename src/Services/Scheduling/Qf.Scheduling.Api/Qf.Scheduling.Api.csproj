@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Scheduling GraphQL subgraph (composed into the Fusion gateway). -->
+  <PropertyGroup>
+    <UserSecretsId>qf-scheduling-api</UserSecretsId>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="HotChocolate.AspNetCore.CommandLine" />
+    <PackageReference Include="HotChocolate.Data" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Qf.Scheduling.Infrastructure\Qf.Scheduling.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Qf.BuildingBlocks.Hosting\Qf.BuildingBlocks.Hosting.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Qf.Scheduling.Api.IntegrationTests" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Use cases. Depends on the domain and on ports (interfaces) only; adapters live in Infrastructure. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Qf.ClientRegistry.Domain\Qf.ClientRegistry.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Qf.ClientRegistry.Tests" />
+  </ItemGroup>
+</Project>

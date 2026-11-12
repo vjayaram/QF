@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Qf.ClientRegistry.Application\Qf.ClientRegistry.Application.csproj" />
+    <ProjectReference Include="..\Qf.ClientRegistry.AntiCorruption\Qf.ClientRegistry.AntiCorruption.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Qf.BuildingBlocks.Infrastructure\Qf.BuildingBlocks.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

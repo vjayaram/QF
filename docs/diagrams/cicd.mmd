@@ -1,0 +1,11 @@
+%%{init: {'theme':'neutral'}}%%
+flowchart TB
+  PR[Pull request or merge to main] --> B1
+  subgraph B["Build stage (every PR)"]
+    direction LR
+    B1[MDD drift check] --> B2[Build<br/>warnings = errors] --> B3[Vulnerable<br/>packages gate] --> B4["Tests: unit · architecture<br/>generator · Testcontainers"] --> B5["Coverage gate<br/>line 80% · branch 70%"] --> B6[Fusion compose] --> B7[DACPAC build]
+    S1["Parallel: CodeQL · dependency scan<br/>Checkov/Terrascan · secret scan"]
+  end
+  B7 --> P["Package (main only): docker build · Trivy · SBOM · push"]
+  P --> DP["Dev: terraform plan"] --> DA["Dev: apply that plan · DACPAC · blue/green rollout"]
+  DA --> PP["Prod: terraform plan"] --> AP{{Environment approval}} --> PA["Prod: apply plan · DACPAC · promote same image digest · 10% canary, then 100%"]

@@ -1,0 +1,66 @@
+{
+  "$comment": "Source of truth for the Scheduling bounded context. Edit this file, then run: dotnet run --project tools/Qf.ModelGen -- --all",
+  "boundedContext": "Scheduling",
+  "namespace": "Qf.Scheduling.Domain",
+  "outputs": {
+    "domain": "src/Services/Scheduling/Qf.Scheduling.Domain/Generated",
+    "infrastructure": "src/Services/Scheduling/Qf.Scheduling.Infrastructure/Generated",
+    "infrastructureNamespace": "Qf.Scheduling.Infrastructure.Persistence",
+    "api": "src/Services/Scheduling/Qf.Scheduling.Api/Generated",
+    "apiNamespace": "Qf.Scheduling.Api.GraphQL",
+    "database": "database/Scheduling/Tables"
+  },
+  "enums": [
+    {
+      "name": "AppointmentStatus",
+      "values": [ "Scheduled", "CheckedIn", "Completed", "Cancelled", "NoShow" ],
+      "transitions": [
+        { "from": "Scheduled", "to": "CheckedIn" },
+        { "from": "Scheduled", "to": "Cancelled" },
+        { "from": "Scheduled", "to": "NoShow" },
+        { "from": "CheckedIn", "to": "Completed" },
+        { "from": "CheckedIn", "to": "Cancelled" }
+      ]
+    },
+    { "name": "VisitModality", "values": [ "InPerson", "Telehealth" ] },
+    { "name": "ServiceType", "values": [ "Intake", "IndividualTherapy", "GroupTherapy", "PsychiatricEvaluation", "MedicationManagement", "CaseManagement" ] },
+    { "name": "CancellationReason", "values": [ "ClientRequest", "ProviderUnavailable", "Weather", "Administrative", "Other" ] }
+  ],
+  "valueObjects": [
+    {
+      "name": "TimeSlot",
+      "description": "Half-open interval [Start, End). Cross-field invariants are hand-written in TimeSlot.cs.",
+      "fields": [
+        { "name": "Start", "type": "DateTimeOffset" },
+        { "name": "End", "type": "DateTimeOffset" }
+      ]
+    }
+  ],
+  "aggregates": [
+    {
+      "name": "Appointment",
+      "table": "Appointments",
+      "fields": [
+        { "name": "ClientId", "type": "Guid", "description": "Reference to Client Registry by identity only." },
+        { "name": "ProviderId", "type": "Guid" },
+        { "name": "Slot", "type": "TimeSlot" },
+        { "name": "ServiceType", "type": "ServiceType" },
+        { "name": "Modality", "type": "VisitModality" },
+        { "name": "Status", "type": "AppointmentStatus" },
+        { "name": "CancellationReason", "type": "CancellationReason", "required": false },
+        { "name": "CheckedInAt", "type": "DateTimeOffset", "required": false },
+        { "name": "CompletedAt", "type": "DateTimeOffset", "required": false }
+      ],
+      "indexes": [ [ "ProviderId" ], [ "ClientId" ] ],
+      "graphql": { "expose": true }
+    }
+  ],
+  "events": [
+    { "name": "AppointmentScheduled", "fields": [ { "name": "AppointmentId", "type": "Guid" }, { "name": "TenantId", "type": "Guid" }, { "name": "ClientId", "type": "Guid" }, { "name": "ProviderId", "type": "Guid" }, { "name": "Start", "type": "DateTimeOffset" }, { "name": "End", "type": "DateTimeOffset" } ] },
+    { "name": "AppointmentCheckedIn", "fields": [ { "name": "AppointmentId", "type": "Guid" }, { "name": "TenantId", "type": "Guid" } ] },
+    { "name": "AppointmentCompleted", "fields": [ { "name": "AppointmentId", "type": "Guid" }, { "name": "TenantId", "type": "Guid" }, { "name": "ServiceType", "type": "ServiceType" } ] },
+    { "name": "AppointmentCancelled", "fields": [ { "name": "AppointmentId", "type": "Guid" }, { "name": "TenantId", "type": "Guid" }, { "name": "Reason", "type": "CancellationReason" } ] },
+    { "name": "AppointmentMarkedNoShow", "fields": [ { "name": "AppointmentId", "type": "Guid" }, { "name": "TenantId", "type": "Guid" } ] },
+    { "name": "AppointmentClientReassigned", "fields": [ { "name": "AppointmentId", "type": "Guid" }, { "name": "TenantId", "type": "Guid" }, { "name": "FromClientId", "type": "Guid" }, { "name": "ToClientId", "type": "Guid" } ] }
+  ]
+}

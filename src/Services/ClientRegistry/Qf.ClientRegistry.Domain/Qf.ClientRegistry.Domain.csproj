@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Pure domain: no package references allowed (enforced by architecture tests). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\Qf.BuildingBlocks\Qf.BuildingBlocks.csproj" />
+  </ItemGroup>
+</Project>

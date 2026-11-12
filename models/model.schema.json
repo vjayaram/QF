@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qualifacts.example/schemas/domain-model.json",
+  "title": "Bounded-context domain model (Qf.ModelGen input)",
+  "type": "object",
+  "required": [ "boundedContext", "namespace", "outputs" ],
+  "properties": {
+    "$comment": { "type": "string" },
+    "boundedContext": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" },
+    "namespace": { "type": "string" },
+    "outputs": {
+      "type": "object",
+      "required": [ "domain", "infrastructure", "infrastructureNamespace", "api", "apiNamespace", "database" ],
+      "properties": {
+        "domain": { "type": "string" }, "infrastructure": { "type": "string" }, "infrastructureNamespace": { "type": "string" },
+        "api": { "type": "string" }, "apiNamespace": { "type": "string" }, "database": { "type": "string" }
+      }
+    },
+    "enums": { "type": "array", "items": { "$ref": "#/$defs/enum" } },
+    "valueObjects": { "type": "array", "items": { "$ref": "#/$defs/valueObject" } },
+    "aggregates": { "type": "array", "items": { "$ref": "#/$defs/aggregate" } },
+    "events": { "type": "array", "items": { "$ref": "#/$defs/event" } }
+  },
+  "$defs": {
+    "name": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" },
+    "field": {
+      "type": "object",
+      "required": [ "name", "type" ],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "type": { "type": "string" },
+        "required": { "type": "boolean", "default": true },
+        "maxLength": { "type": "integer", "minimum": 1 },
+        "minLength": { "type": "integer", "minimum": 0 },
+        "pattern": { "type": "string" },
+        "precision": { "type": "integer" },
+        "scale": { "type": "integer" },
+        "phi": { "type": "boolean", "default": false },
+        "unique": { "type": "boolean", "default": false },
+        "description": { "type": "string" }
+      }
+    },
+    "enum": {
+      "type": "object",
+      "required": [ "name", "values" ],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" }, "description": { "type": "string" },
+        "values": { "type": "array", "items": { "$ref": "#/$defs/name" }, "minItems": 1 },
+        "transitions": { "type": "array", "items": { "type": "object", "required": [ "from", "to" ], "properties": { "from": { "type": "string" }, "to": { "type": "string" } } } }
+      }
+    },
+    "valueObject": {
+      "type": "object", "required": [ "name", "fields" ],
+      "properties": { "name": { "$ref": "#/$defs/name" }, "description": { "type": "string" }, "fields": { "type": "array", "items": { "$ref": "#/$defs/field" }, "minItems": 1 } }
+    },
+    "aggregate": {
+      "type": "object", "required": [ "name", "table", "fields" ],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" }, "description": { "type": "string" }, "table": { "type": "string" },
+        "fields": { "type": "array", "items": { "$ref": "#/$defs/field" }, "minItems": 1 },
+        "collections": { "type": "array", "items": { "type": "object", "required": [ "name", "type", "table" ], "properties": { "name": { "$ref": "#/$defs/name" }, "type": { "type": "string" }, "table": { "type": "string" }, "uniqueAcross": { "type": "array", "items": { "type": "string" } } } } },
+        "indexes": { "type": "array", "items": { "type": "array", "items": { "type": "string" } } },
+        "graphql": { "type": "object", "properties": { "expose": { "type": "boolean" } } }
+      }
+    },
+    "event": {
+      "type": "object", "required": [ "name", "fields" ],
+      "properties": { "name": { "$ref": "#/$defs/name" }, "description": { "type": "string" }, "fields": { "type": "array", "items": { "$ref": "#/$defs/field" } } }
+    }
+  }
+}

@@ -1,0 +1,214 @@
+asyncapi: 3.1.0
+info:
+  title: Qualifacts EHR platform integration events
+  version: 1.0.0
+  description: |
+    Integration events that leave a bounded context through its transactional outbox and are relayed to
+    Azure Service Bus topics. This document is the contract between publishers and subscribers.
+
+    Envelope (every message):
+    - Service Bus `MessageId` = `eventId` (topics have duplicate detection, so redelivery is idempotent).
+    - Service Bus `Subject` = the versioned event name, for example `ClientMerged.v1`. Subscriptions filter on it.
+    - `ContentType` = `application/json`; the body is camelCase JSON.
+    - Application property `tenantId` = the tenant, repeated outside the body for routing and diagnostics.
+
+    Rules: events carry identifiers only, never PHI; consumers that need demographics query the owning
+    context with authorization. A breaking change ships as a new subject version (`.v2`) alongside the old one.
+  contact:
+    name: Platform architecture
+    url: https://dev.azure.com/qualifacts.example/qf-ehr-platform/_wiki
+    email: platform-architecture@qualifacts.example
+  license:
+    name: Proprietary. Internal use by Qualifacts and contracted partners.
+  tags:
+    - name: client-registry
+    - name: scheduling
+defaultContentType: application/json
+
+servers:
+  azure-service-bus:
+    host: '{namespace}.servicebus.windows.net'
+    protocol: amqp
+    protocolVersion: '1.0'
+    description: Azure Service Bus over a private endpoint. Workloads authenticate with Entra managed identities.
+    variables:
+      namespace:
+        description: Service Bus namespace per environment (provisioned by infra/terraform/modules/messaging).
+    security:
+      - $ref: '#/components/securitySchemes/entraManagedIdentity'
+
+channels:
+  clientRegistryEvents:
+    address: client-registry-events
+    title: Client Registry events topic
+    description: Published by the Client Registry context. Subscriptions are defined in infra/terraform/main.tf.
+    servers:
+      - $ref: '#/servers/azure-service-bus'
+    messages:
+      clientRegistered:
+        $ref: '#/components/messages/ClientRegisteredV1'
+      clientMerged:
+        $ref: '#/components/messages/ClientMergedV1'
+  schedulingEvents:
+    address: scheduling-events
+    title: Scheduling events topic
+    description: Published by the Scheduling context.
+    servers:
+      - $ref: '#/servers/azure-service-bus'
+    messages:
+      appointmentCompleted:
+        $ref: '#/components/messages/AppointmentCompletedV1'
+
+operations:
+  publishClientRegistryEvents:
+    action: send
+    title: Client Registry publishes client lifecycle events
+    description: Sent by the outbox relay of Qf.ClientRegistry.
+    channel:
+      $ref: '#/channels/clientRegistryEvents'
+    messages:
+      - $ref: '#/channels/clientRegistryEvents/messages/clientRegistered'
+      - $ref: '#/channels/clientRegistryEvents/messages/clientMerged'
+  schedulingReceivesClientMerged:
+    action: receive
+    title: Scheduling re-points appointments when clients merge
+    description: Subscription `scheduling` (Subject filter `ClientMerged.v1`), handled by ClientMergedConsumer.
+    channel:
+      $ref: '#/channels/clientRegistryEvents'
+    messages:
+      - $ref: '#/channels/clientRegistryEvents/messages/clientMerged'
+  publishSchedulingEvents:
+    action: send
+    title: Scheduling publishes completed appointments
+    description: Sent by the outbox relay of Qf.Scheduling.
+    channel:
+      $ref: '#/channels/schedulingEvents'
+    messages:
+      - $ref: '#/channels/schedulingEvents/messages/appointmentCompleted'
+  billingReceivesAppointmentCompleted:
+    action: receive
+    title: Billing starts the claim workflow for a rendered service
+    description: Subscription `billing` (Subject filter `AppointmentCompleted.v1`). The Billing context is not built yet.
+    channel:
+      $ref: '#/channels/schedulingEvents'
+    messages:
+      - $ref: '#/channels/schedulingEvents/messages/appointmentCompleted'
+
+components:
+  securitySchemes:
+    entraManagedIdentity:
+      type: oauth2
+      description: Microsoft Entra ID tokens for Service Bus (Azure Service Bus Data Sender / Receiver roles). No connection strings.
+      flows:
+        clientCredentials:
+          tokenUrl: https://login.microsoftonline.com/organizations/oauth2/v2.0/token
+          availableScopes:
+            https://servicebus.azure.net/.default: Service Bus data plane
+
+  messageTraits:
+    serviceBusEnvelope:
+      headers:
+        type: object
+        description: Service Bus application properties.
+        required: [tenantId]
+        properties:
+          tenantId:
+            type: string
+            format: uuid
+            description: Tenant that owns the event (same value as the body's tenantId).
+      correlationId:
+        description: Service Bus MessageId, equal to the body's eventId.
+        location: $message.payload#/eventId
+      contentType: application/json
+
+  messages:
+    ClientRegisteredV1:
+      name: ClientRegistered.v1
+      title: Client registered
+      summary: A new client record was created in a tenant's registry.
+      x-phi: false
+      traits:
+        - $ref: '#/components/messageTraits/serviceBusEnvelope'
+      payload:
+        $ref: '#/components/schemas/ClientRegisteredV1'
+    ClientMergedV1:
+      name: ClientMerged.v1
+      title: Client merged
+      summary: A duplicate client was merged into a survivor. Consumers re-point every reference.
+      x-phi: false
+      traits:
+        - $ref: '#/components/messageTraits/serviceBusEnvelope'
+      payload:
+        $ref: '#/components/schemas/ClientMergedV1'
+    AppointmentCompletedV1:
+      name: AppointmentCompleted.v1
+      title: Appointment completed
+      summary: A service was rendered; Billing starts the claim workflow.
+      x-phi: false
+      traits:
+        - $ref: '#/components/messageTraits/serviceBusEnvelope'
+      payload:
+        $ref: '#/components/schemas/AppointmentCompletedV1'
+
+  schemas:
+    IntegrationEvent:
+      type: object
+      description: Fields every integration event carries (Qf.Contracts.IIntegrationEvent).
+      required: [eventId, occurredAt, tenantId]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: Unique event id; also the Service Bus MessageId.
+        occurredAt:
+          type: string
+          format: date-time
+          description: When the domain event occurred (UTC offset included).
+        tenantId:
+          type: string
+          format: uuid
+          description: Tenant that owns the event.
+
+    ClientRegisteredV1:
+      x-csharp-type: Qf.Contracts.ClientRegistry.ClientRegisteredV1
+      allOf:
+        - $ref: '#/components/schemas/IntegrationEvent'
+        - type: object
+          required: [clientId]
+          properties:
+            clientId:
+              type: string
+              format: uuid
+              description: The new client's registry id.
+
+    ClientMergedV1:
+      x-csharp-type: Qf.Contracts.ClientRegistry.ClientMergedV1
+      allOf:
+        - $ref: '#/components/schemas/IntegrationEvent'
+        - type: object
+          required: [sourceClientId, survivorClientId]
+          properties:
+            sourceClientId:
+              type: string
+              format: uuid
+              description: The retired client id. It no longer accepts writes.
+            survivorClientId:
+              type: string
+              format: uuid
+              description: The client id every reference should now point to.
+
+    AppointmentCompletedV1:
+      x-csharp-type: Qf.Contracts.Scheduling.AppointmentCompletedV1
+      allOf:
+        - $ref: '#/components/schemas/IntegrationEvent'
+        - type: object
+          required: [appointmentId, serviceType]
+          properties:
+            appointmentId:
+              type: string
+              format: uuid
+              description: The completed appointment.
+            serviceType:
+              type: string
+              description: The rendered service (Scheduling's ServiceType enum, by name).
+              enum: [Intake, IndividualTherapy, GroupTherapy, PsychiatricEvaluation, MedicationManagement, CaseManagement]

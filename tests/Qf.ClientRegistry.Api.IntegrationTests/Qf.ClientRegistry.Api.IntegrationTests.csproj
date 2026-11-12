@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    End-to-end through the real GraphQL pipeline against SQL Server in a container (Testcontainers).
+    The database schema is created from database/ClientRegistry (the same generated DDL the DACPAC deploys),
+    so these tests also prove the EF mapping and the SQL schema agree. Requires Docker on the build agent.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.MsSql" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Services\ClientRegistry\Qf.ClientRegistry.Api\Qf.ClientRegistry.Api.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

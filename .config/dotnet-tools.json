@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "dotnet-ef": {
+      "version": "10.0.0",
+      "commands": [
+        "dotnet-ef"
+      ]
+    },
+    "hotchocolate.fusion.commandline": {
+      "version": "15.1.3",
+      "commands": [
+        "fusion"
+      ]
+    },
+    "dotnet-reportgenerator-globaltool": {
+      "version": "5.4.8",
+      "commands": [
+        "reportgenerator"
+      ]
+    },
+    "microsoft.sbom.dotnettool": {
+      "version": "4.0.3",
+      "commands": [
+        "sbom-tool"
+      ]
+    },
+    "microsoft.sqlpackage": {
+      "version": "170.0.94",
+      "commands": [
+        "sqlpackage"
+      ]
+    }
+  }
+}

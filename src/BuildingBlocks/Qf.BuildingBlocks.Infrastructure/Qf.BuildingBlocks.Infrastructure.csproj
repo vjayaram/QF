@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shared adapters: EF Core unit of work + transactional outbox/inbox, Azure Service Bus, tenant isolation. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="Azure.Messaging.ServiceBus" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Qf.BuildingBlocks\Qf.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\..\Contracts\Qf.Contracts\Qf.Contracts.csproj" />
+  </ItemGroup>
+</Project>
